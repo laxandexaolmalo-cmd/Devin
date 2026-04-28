@@ -1,0 +1,51 @@
+{
+  "name": "supa.js",
+  "version": "0.1.0",
+  "description": "Tiny, LLM-friendly Discord bot library. Ringkas, sat-set, no fluff.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "example:ping": "node --import tsx/esm examples/ping.ts",
+    "example:hello": "node --import tsx/esm examples/hello-slash.ts",
+    "example:buttons": "node --import tsx/esm examples/buttons-modal.ts",
+    "example:embeds": "node --import tsx/esm examples/embeds-files.ts",
+    "example:sub": "node --import tsx/esm examples/subcommands-autocomplete.ts",
+    "example:mod": "node --import tsx/esm examples/moderation.ts",
+    "example:v2": "node --import tsx/esm examples/components-v2.ts",
+    "example:poll": "node --import tsx/esm examples/poll.ts",
+    "example:automod": "node --import tsx/esm examples/automod.ts",
+    "example:smoke-v3": "node --import tsx/esm examples/smoke-v3.ts"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "discord-bot",
+    "ai",
+    "llm",
+    "gateway",
+    "tiny"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.19.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
