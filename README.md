@@ -164,6 +164,47 @@ Option types accept strings (`"String"`, `"Integer"`, `"Boolean"`, `"User"`,
 `"Channel"`, `"Role"`, `"Mentionable"`, `"Number"`, `"Attachment"`) or
 numeric `OptionType.*`.
 
+#### Localizations (per-locale name/description)
+
+Pass a typed `localize` table on the command, options, and choices:
+
+```ts
+import { Locale } from "supa.js";   // optional — runtime is just strings
+
+bot.command(
+  "hello",
+  {
+    description: "Say hi",
+    localize: {
+      name: { id: "halo", "es-ES": "hola", fr: "salut" },
+      description: { id: "Sapa seseorang", "es-ES": "Saluda a alguien" },
+    },
+    options: [
+      {
+        name: "lang",
+        description: "Pick a language",
+        type: "String",
+        localize: {
+          name: { id: "bahasa" },
+          description: { id: "Pilih bahasa" },
+        },
+        choices: [
+          { name: "English", value: "en", nameLocalizations: { id: "Inggris" } },
+          { name: "Indonesian", value: "id", nameLocalizations: { id: "Indonesia" } },
+        ],
+      },
+    ],
+  },
+  async (ctx) => ctx.reply(ctx.optString("lang") === "id" ? "Halo!" : "Hello!"),
+);
+```
+
+Locale codes are validated at compile time against Discord's supported
+`Locale` union (`id`, `da`, `de`, `en-GB`, `en-US`, `es-ES`, `es-419`, `fr`,
+`hr`, `it`, `lt`, `hu`, `nl`, `no`, `pl`, `pt-BR`, `ro`, `fi`, `sv-SE`, `vi`,
+`tr`, `cs`, `el`, `bg`, `ru`, `uk`, `hi`, `th`, `zh-CN`, `ja`, `zh-TW`, `ko`).
+Use `validateLocaleTable(table, "name")` for runtime validation.
+
 ### Subcommands & groups
 
 Use **dotted names**:
@@ -343,12 +384,29 @@ g.searchMembers(query, limit?)
 g.ban(userId, { reason?, deleteMessageSeconds? })
 g.unban(userId, reason?) | g.kick(userId, reason?)
 g.fetchBans({ limit?, before?, after? })
+g.fetchBan(userId)                                    // null if not banned (no 10026)
+g.bulkBan({ userIds, deleteMessageSeconds?, reason? })// up to 200 users / call
+g.getPruneCount({ days?, includeRoleIds? })           // dry-run prune
+g.beginPrune({ days?, computePruneCount?, includeRoleIds?, reason? })
+g.setIncidentActions({ invitesDisabledUntil?, dmsDisabledUntil?, reason? })
 g.fetchRoles() | g.createRole({ name?, color?, permissions?, ... })
 g.fetchChannels() | g.createChannel({ name, type?, ... })
 g.fetchInvites() | g.fetchWebhooks()
+g.fetchIntegrations() | g.deleteIntegration(id, reason?)
 g.fetchAuditLog({ userId?, actionType?, limit? })
 g.fetchScheduledEvents() | g.createScheduledEvent({...})
+g.templates.list() | g.templates.create({ name, description? })
+g.templates.sync(code) | g.templates.edit(code, {...}) | g.templates.delete(code)
 g.edit({ name?, description?, icon? }) | g.leave()
+
+// Top-level templates (no guildId required):
+bot.templates.fetch(code)                     // GET /guilds/templates/{code}
+bot.templates.createGuild(code, { name, icon? })
+
+// Application info / OAuth:
+bot.fetchApplication()                        // GET /applications/@me
+bot.editApplication({ description?, icon?, coverImage?, flags?, tags?, ... })
+bot.fetchOwnAuthorization(bearerToken)        // GET /oauth2/@me
 
 // On a member:
 member.user; member.name; member.nick; member.roleIds; member.joinedAt
@@ -497,11 +555,15 @@ const voters = await ch.fetchPollVoters(messageId, /*answerId*/ 1);
 ### Auto-mod
 
 ```ts
+import { AutoModTrigger, AutoModAction } from "supa.js";
+
 const rule = await bot.automod(guildId).create({
   name: "Block: bad-word",
-  triggerType: "Keyword",
-  triggerMetadata: { keyword_filter: ["badword"] },
-  actions: [{ kind: "block", customMessage: "Blocked." }],
+  ...AutoModTrigger.keyword({ keywords: ["badword"], regex: ["b[a4]dword"] }),
+  actions: [
+    AutoModAction.block({ customMessage: "Blocked." }),
+    AutoModAction.timeout(5 * 60),
+  ],
 });
 await bot.automod(guildId).list();
 await bot.automod(guildId).edit(rule.id, { enabled: false });
@@ -512,8 +574,17 @@ bot.on("autoModActionExecute", info => {
 });
 ```
 
-Trigger types: `Keyword | Spam | KeywordPreset | MentionSpam | MemberProfile`.
-Action kinds: `block | alert | timeout`.
+Typed helpers:
+- `AutoModTrigger.keyword({ keywords?, regex?, allowList? })`
+- `AutoModTrigger.spam()`
+- `AutoModTrigger.keywordPreset({ presets, allowList? })` — `"Profanity" | "SexualContent" | "Slurs"`
+- `AutoModTrigger.mentionSpam({ total, raidProtection? })`
+- `AutoModTrigger.memberProfile({ keywords?, regex?, allowList? })`
+- `AutoModAction.block({ customMessage? })`
+- `AutoModAction.alert(channelId)`
+- `AutoModAction.timeout(seconds)`
+
+The raw `triggerType` + `triggerMetadata` shape still works if you prefer it.
 
 ### Application emojis (no guild needed)
 
@@ -823,6 +894,11 @@ try {
   }
 }
 console.log(`${Object.keys(DiscordErrorCodes).length} codes mapped`);
+
+// Dump the entire table for AI tooling / dashboards:
+import { discordErrorCodesToJSON } from "supa.js";
+const all = discordErrorCodesToJSON();
+// → [{ code: 50013, kind: "missing-permissions", name, meaning, fix }, ...]
 ```
 
 Codes mapped include `2026-Q1` additions:

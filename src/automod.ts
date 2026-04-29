@@ -1,7 +1,7 @@
 // Auto-mod rules — CRUD wrapper. Live on a Guild via `guild.automod.*`.
 
 import type { Rest } from "./rest.js";
-import { AutoModActionType, AutoModEventType, AutoModTriggerType } from "./types.js";
+import { AutoModActionType, AutoModEventType, AutoModKeywordPreset, AutoModTriggerType } from "./types.js";
 
 export interface AutoModRule {
   id: string;
@@ -94,6 +94,94 @@ function fromRaw(r: RawRule): AutoModRule {
     exemptChannels: r.exempt_channels,
   };
 }
+
+// ── Typed object-literal helpers ──────────────────────────────────────────
+//
+// AutoMod rules need a `triggerType` AND a matching `triggerMetadata`. The two
+// are tightly coupled, but `CreateRuleOptions` keeps them split for backwards
+// compat. These helpers let you build a fully-typed `{ triggerType, triggerMetadata }`
+// pair in one shot:
+//
+//   await guild.automod.create({
+//     name: "no slurs",
+//     ...AutoModTrigger.keyword({ keywords: ["badword"], regex: ["b[a4]dword"] }),
+//     actions: [AutoModAction.block({ customMessage: "no" })],
+//   });
+
+type TriggerPair = {
+  triggerType: keyof typeof AutoModTriggerType;
+  triggerMetadata: AutoModTriggerMetadata;
+};
+
+export const AutoModTrigger = {
+  /** Block content matching custom keywords / regex / allow-list. */
+  keyword(opts: { keywords?: string[]; regex?: string[]; allowList?: string[] }): TriggerPair {
+    return {
+      triggerType: "Keyword",
+      triggerMetadata: {
+        keyword_filter: opts.keywords,
+        regex_patterns: opts.regex,
+        allow_list: opts.allowList,
+      },
+    };
+  },
+  /** Block generic spam (Discord's classifier; no metadata). */
+  spam(): TriggerPair {
+    return { triggerType: "Spam", triggerMetadata: {} };
+  },
+  /** Block one or more of Discord's curated preset categories. */
+  keywordPreset(opts: {
+    presets: (keyof typeof AutoModKeywordPreset)[];
+    allowList?: string[];
+  }): TriggerPair {
+    return {
+      triggerType: "KeywordPreset",
+      triggerMetadata: {
+        presets: opts.presets.map((p) => AutoModKeywordPreset[p]),
+        allow_list: opts.allowList,
+      },
+    };
+  },
+  /**
+   * Block messages with too many mentions (anti-raid).
+   * `total` = max @user/@role mentions per message; `raidProtection` enables Discord's mention-spam classifier.
+   */
+  mentionSpam(opts: { total: number; raidProtection?: boolean }): TriggerPair {
+    return {
+      triggerType: "MentionSpam",
+      triggerMetadata: {
+        mention_total_limit: opts.total,
+        mention_raid_protection_enabled: opts.raidProtection,
+      },
+    };
+  },
+  /** Block disallowed content in member display name / nickname (event_type=MemberUpdate is forced). */
+  memberProfile(opts: { keywords?: string[]; regex?: string[]; allowList?: string[] }): TriggerPair {
+    return {
+      triggerType: "MemberProfile",
+      triggerMetadata: {
+        keyword_filter: opts.keywords,
+        regex_patterns: opts.regex,
+        allow_list: opts.allowList,
+      },
+    };
+  },
+} as const;
+
+export const AutoModAction = {
+  /** Block the offending message (and optionally show a custom error to the sender). */
+  block(opts: { customMessage?: string } = {}): ActionInput {
+    return { kind: "block", customMessage: opts.customMessage };
+  },
+  /** Forward the offending message to a moderation channel. */
+  alert(channelId: string): ActionInput {
+    return { kind: "alert", channelId };
+  },
+  /** Time-out the user for `seconds` (max 2_419_200 = 28 days). */
+  timeout(seconds: number): ActionInput {
+    return { kind: "timeout", durationSeconds: seconds };
+  },
+} as const;
 
 export class AutoMod {
   constructor(private guildId: string, private rest: Rest) {}

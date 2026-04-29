@@ -20,6 +20,8 @@ import { Soundboard } from "./soundboard.js";
 import { StageInstances } from "./stage.js";
 import { fetchStickerPacks } from "./stickers.js";
 import type { StickerPack } from "./stickers.js";
+import { Templates } from "./templates.js";
+import type { GuildTemplate } from "./templates.js";
 import {
   AutocompleteCtx,
   ChatInputCtx,
@@ -40,6 +42,7 @@ import {
   MessageCommandDef,
   Op,
   OptionType,
+  RawApplication,
   RawChannel,
   RawGuild,
   RawInteraction,
@@ -174,6 +177,11 @@ export interface BotEvents {
   // Audit log entries (created live)
   guildAuditLogEntryCreate: (entry: unknown) => void;
 
+  // Guild integrations (Twitch/YouTube/app subscriptions)
+  integrationCreate: (info: { guildId: string; integration: unknown }) => void;
+  integrationUpdate: (info: { guildId: string; integration: unknown }) => void;
+  integrationDelete: (info: { id: string; guildId: string; applicationId?: string }) => void;
+
   /** Raw catch-all for events Supa.js doesn't wrap. */
   raw: (event: string, data: unknown) => void;
 }
@@ -191,6 +199,7 @@ export class Bot {
   readonly entitlements: Entitlements;
   readonly skus: Skus;
   readonly roleConnections: RoleConnectionMetadata;
+  readonly templates: Templates;
 
   me?: User;
   applicationId?: string;
@@ -225,6 +234,7 @@ export class Bot {
     this.entitlements = new Entitlements(() => this.applicationId ?? "", this.rest);
     this.skus = new Skus(() => this.applicationId ?? "", this.rest);
     this.roleConnections = new RoleConnectionMetadata(() => this.applicationId ?? "", this.rest);
+    this.templates = new Templates(this.rest);
     this.debug = new Debugger(this, !!opts.debug);
 
     this.gateway.on("dispatch", (t: string, d: unknown) => this.dispatch(t, d));
@@ -655,6 +665,23 @@ export class Bot {
       // Guild Audit Log entry created (fine-grained moderation events)
       case "GUILD_AUDIT_LOG_ENTRY_CREATE":
         this.emit("guildAuditLogEntryCreate", d); return;
+
+      // Guild integrations
+      case "INTEGRATION_CREATE": {
+        const r = d as { guild_id: string } & Record<string, unknown>;
+        this.emit("integrationCreate", { guildId: r.guild_id, integration: d });
+        return;
+      }
+      case "INTEGRATION_UPDATE": {
+        const r = d as { guild_id: string } & Record<string, unknown>;
+        this.emit("integrationUpdate", { guildId: r.guild_id, integration: d });
+        return;
+      }
+      case "INTEGRATION_DELETE": {
+        const r = d as { id: string; guild_id: string; application_id?: string };
+        this.emit("integrationDelete", { id: r.id, guildId: r.guild_id, applicationId: r.application_id });
+        return;
+      }
     }
   }
 
@@ -666,6 +693,72 @@ export class Bot {
   /** List standard sticker packs (no application/guild scoping needed). */
   fetchStickerPacks(): Promise<StickerPack[]> {
     return fetchStickerPacks(this.rest);
+  }
+
+  // ── Application info ────────────────────────────────────────────────────
+
+  /**
+   * Fetch this application's metadata (name/description/icon/install params/
+   * webhook URLs/etc.). Useful before editing.
+   * Source: https://docs.discord.com/developers/resources/application#get-current-application
+   */
+  fetchApplication(): Promise<RawApplication> {
+    return this.rest.get<RawApplication>(`/applications/@me`);
+  }
+
+  /**
+   * Edit this application's metadata. Pass only the fields you want to change.
+   *
+   * `icon` / `coverImage` accept a base64 data URI (use `bytesToDataUri()`).
+   * Source: https://docs.discord.com/developers/resources/application#edit-current-application
+   */
+  editApplication(opts: {
+    description?: string;
+    icon?: string | null;
+    coverImage?: string | null;
+    flags?: number;
+    tags?: string[];
+    installParams?: { scopes: string[]; permissions: string };
+    integrationTypesConfig?: Record<string, { oauth2_install_params?: { scopes: string[]; permissions: string } }>;
+    customInstallUrl?: string | null;
+    interactionsEndpointUrl?: string | null;
+    roleConnectionsVerificationUrl?: string | null;
+    eventWebhooksUrl?: string | null;
+    eventWebhooksStatus?: number;
+    eventWebhooksTypes?: string[];
+  }): Promise<RawApplication> {
+    return this.rest.patch<RawApplication>(`/applications/@me`, {
+      description: opts.description,
+      icon: opts.icon,
+      cover_image: opts.coverImage,
+      flags: opts.flags,
+      tags: opts.tags,
+      install_params: opts.installParams,
+      integration_types_config: opts.integrationTypesConfig,
+      custom_install_url: opts.customInstallUrl,
+      interactions_endpoint_url: opts.interactionsEndpointUrl,
+      role_connections_verification_url: opts.roleConnectionsVerificationUrl,
+      event_webhooks_url: opts.eventWebhooksUrl,
+      event_webhooks_status: opts.eventWebhooksStatus,
+      event_webhooks_types: opts.eventWebhooksTypes,
+    });
+  }
+
+  /**
+   * Fetch the OAuth2 authorization metadata for a user-granted bearer token
+   * (`/oauth2/@me`). Useful when a bot acts on behalf of a user that authorized
+   * it via OAuth2 — returns `{ application, scopes, expires, user? }`.
+   *
+   * NOTE: Pass a USER bearer token, NOT the bot token.
+   * Source: https://docs.discord.com/developers/topics/oauth2#get-current-authorization-information
+   */
+  fetchOwnAuthorization(bearerToken: string): Promise<{
+    application: RawApplication;
+    scopes: string[];
+    expires: string;
+    user?: RawUser;
+  }> {
+    return this.rest.get(`/oauth2/@me`, { Authorization: `Bearer ${bearerToken}` });
   }
 
   // ── Application command permissions (per-guild) ────────────────────────
@@ -803,18 +896,22 @@ function matchHandler<T>(map: Map<string | RegExp, T>, customId: string): T | un
 
 function toRawCommand(c: RegisteredCommand): Record<string, unknown> {
   if (c.type === ApplicationCommandType.User || c.type === ApplicationCommandType.Message) {
+    const def = c.def as UserCommandDef;
     return {
       type: c.type,
       name: c.name,
-      default_member_permissions: (c.def as UserCommandDef).defaultPermissions,
-      nsfw: c.def.nsfw,
+      name_localizations: def.localize?.name,
+      default_member_permissions: def.defaultPermissions,
+      nsfw: def.nsfw,
     };
   }
   const def = c.def as CommandDef;
   return {
     type: ApplicationCommandType.ChatInput,
     name: c.name,
+    name_localizations: def.localize?.name,
     description: def.description,
+    description_localizations: def.localize?.description,
     options: def.options?.map(toRawOption),
     default_member_permissions: def.defaultPermissions,
     dm_permission: def.dmPermission,
@@ -826,10 +923,16 @@ function toRawOption(o: CommandOption): Record<string, unknown> {
   const type = typeof o.type === "number" ? o.type : OptionType[o.type];
   return {
     name: o.name,
+    name_localizations: o.localize?.name,
     description: o.description,
+    description_localizations: o.localize?.description,
     type,
     required: o.required,
-    choices: o.choices,
+    choices: o.choices?.map((c) => ({
+      name: c.name,
+      name_localizations: c.nameLocalizations,
+      value: c.value,
+    })),
     options: o.options?.map(toRawOption),
     channel_types: o.channel_types,
     min_value: o.min_value,
