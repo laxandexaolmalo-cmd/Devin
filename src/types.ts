@@ -2,6 +2,8 @@
 // Subset of the Discord API — only what Supa.js exposes.
 // Keep these as flat as possible; convert to nice JS shapes inside structures.
 
+import type { Localize } from "./localizations.js";
+
 export const API = "https://discord.com/api/v10";
 export const CDN = "https://cdn.discordapp.com";
 export const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
@@ -505,6 +507,92 @@ export interface RawInvite {
   expires_at?: string | null;
 }
 
+/**
+ * Guild integration (Twitch/YouTube/Discord-app subscription).
+ * Source: https://docs.discord.com/developers/resources/guild#integration-object
+ */
+export interface RawIntegration {
+  id: string;
+  name: string;
+  type: string;
+  enabled: boolean;
+  syncing?: boolean;
+  role_id?: string;
+  enable_emoticons?: boolean;
+  expire_behavior?: number;
+  expire_grace_period?: number;
+  user?: RawUser;
+  account: { id: string; name: string };
+  synced_at?: string;
+  subscriber_count?: number;
+  revoked?: boolean;
+  application?: {
+    id: string;
+    name: string;
+    icon: string | null;
+    description: string;
+    bot?: RawUser;
+  };
+  scopes?: string[];
+}
+
+/**
+ * Guild template (snapshot of a guild's structure that can spawn new guilds).
+ * Source: https://docs.discord.com/developers/resources/guild-template#guild-template-object
+ */
+export interface RawTemplate {
+  code: string;
+  name: string;
+  description: string | null;
+  usage_count: number;
+  creator_id: string;
+  creator: RawUser;
+  created_at: string;
+  updated_at: string;
+  source_guild_id: string;
+  serialized_source_guild: Record<string, unknown>;
+  is_dirty: boolean | null;
+}
+
+/**
+ * Application object (`GET /applications/@me`).
+ * Subset — Discord adds fields aggressively; the `raw` field carries the rest.
+ * Source: https://docs.discord.com/developers/resources/application#application-object
+ */
+export interface RawApplication {
+  id: string;
+  name: string;
+  icon: string | null;
+  description: string;
+  rpc_origins?: string[];
+  bot_public: boolean;
+  bot_require_code_grant: boolean;
+  bot?: RawUser;
+  terms_of_service_url?: string;
+  privacy_policy_url?: string;
+  owner?: RawUser;
+  verify_key: string;
+  team?: unknown;
+  guild_id?: string;
+  guild?: unknown;
+  primary_sku_id?: string;
+  slug?: string;
+  cover_image?: string;
+  flags?: number;
+  approximate_guild_count?: number;
+  approximate_user_install_count?: number;
+  redirect_uris?: string[];
+  interactions_endpoint_url?: string | null;
+  role_connections_verification_url?: string | null;
+  event_webhooks_url?: string | null;
+  event_webhooks_status?: number;
+  event_webhooks_types?: string[];
+  tags?: string[];
+  install_params?: { scopes: string[]; permissions: string };
+  integration_types_config?: Record<string, { oauth2_install_params?: { scopes: string[]; permissions: string } }>;
+  custom_install_url?: string;
+}
+
 export interface RawScheduledEvent {
   id: string;
   guild_id: string;
@@ -558,7 +646,7 @@ export interface CommandOption {
   description: string;
   type: keyof typeof OptionType | number;
   required?: boolean;
-  choices?: { name: string; value: string | number }[];
+  choices?: { name: string; value: string | number; nameLocalizations?: Localize["name"] }[];
   options?: CommandOption[]; // for SubCommand / SubCommandGroup
   channel_types?: number[];
   min_value?: number;
@@ -566,6 +654,8 @@ export interface CommandOption {
   min_length?: number;
   max_length?: number;
   autocomplete?: boolean;
+  /** Per-locale overrides for `name` / `description`. */
+  localize?: Localize;
 }
 
 export interface CommandDef {
@@ -579,12 +669,16 @@ export interface CommandDef {
   dmPermission?: boolean;
   /** NSFW flag. */
   nsfw?: boolean;
+  /** Per-locale overrides for the command's `name` / `description`. */
+  localize?: Localize;
 }
 
 export interface UserCommandDef {
   guildId?: string;
   defaultPermissions?: string;
   nsfw?: boolean;
+  /** Per-locale overrides for the command's `name`. (User/Message commands have no description.) */
+  localize?: { name?: Localize["name"] };
 }
 
 export interface MessageCommandDef extends UserCommandDef {}

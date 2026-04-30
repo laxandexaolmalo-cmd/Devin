@@ -84,7 +84,7 @@ export type {
   Emoji,
 } from "./components.js";
 
-export { Rest, RestError, DiscordErrorCodes } from "./rest.js";
+export { Rest, RestError, DiscordErrorCodes, discordErrorCodesToJSON } from "./rest.js";
 export type { DiscordErrorMeta } from "./rest.js";
 export type { RestFile, RestOptions } from "./rest.js";
 
@@ -128,6 +128,9 @@ export type {
   RawAttachment,
   RawWebhook,
   RawInvite,
+  RawApplication,
+  RawIntegration,
+  RawTemplate,
   RawScheduledEvent,
   RawAuditLogEntry,
   RawVoiceState,
@@ -147,7 +150,7 @@ export { collect, await_ } from "./collectors.js";
 export type { CollectOptions } from "./collectors.js";
 
 // Auto-mod
-export { AutoMod } from "./automod.js";
+export { AutoMod, AutoModTrigger, AutoModAction } from "./automod.js";
 export type {
   AutoModRule,
   AutoModTriggerMetadata,
@@ -155,6 +158,14 @@ export type {
   CreateRuleOptions as AutoModCreateOptions,
   ActionInput as AutoModActionInput,
 } from "./automod.js";
+
+// Slash-command localizations
+export { Locales, validateLocaleTable } from "./localizations.js";
+export type { Locale, LocaleTable, Localize } from "./localizations.js";
+
+// Guild templates
+export { Templates, GuildTemplates } from "./templates.js";
+export type { GuildTemplate } from "./templates.js";
 
 // Application emojis (per-app, no guild)
 export { AppEmojis, bytesToDataUri } from "./app-emojis.js";

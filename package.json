@@ -31,7 +31,8 @@
     "example:v2": "node --import tsx/esm examples/components-v2.ts",
     "example:poll": "node --import tsx/esm examples/poll.ts",
     "example:automod": "node --import tsx/esm examples/automod.ts",
-    "example:smoke-v3": "node --import tsx/esm examples/smoke-v3.ts"
+    "example:smoke-v3": "node --import tsx/esm examples/smoke-v3.ts",
+    "example:admin": "node --import tsx/esm examples/admin-2026.ts"
   },
   "keywords": [
     "discord",

@@ -8,10 +8,12 @@ import { GuildStickers } from "./stickers.js";
 import { Invite, Role, User, Webhook } from "./structures.js";
 import { Channel } from "./channel.js";
 import { Message } from "./message.js";
+import { GuildTemplates } from "./templates.js";
 import {
   RawAuditLogEntry,
   RawChannel,
   RawGuild,
+  RawIntegration,
   RawInvite,
   RawMember,
   RawMessage,
@@ -215,6 +217,157 @@ export class Guild {
       `/guilds/${this.id}/bans${q ? `?${q}` : ""}`,
     );
     return arr.map((b) => ({ user: new User(b.user, this.rest), reason: b.reason }));
+  }
+
+  /**
+   * Fetch a single guild ban. Returns `null` if the user is not banned.
+   * Source: https://docs.discord.com/developers/resources/guild#get-guild-ban
+   */
+  async fetchBan(userId: string): Promise<{ user: User; reason: string | null } | null> {
+    try {
+      const r = await this.rest.get<{ user: RawUser; reason: string | null }>(`/guilds/${this.id}/bans/${userId}`);
+      return { user: new User(r.user, this.rest), reason: r.reason };
+    } catch (err) {
+      // 10026 = Unknown Ban — convert to null for ergonomics.
+      const code = (err as { code?: number; status?: number }).code;
+      const status = (err as { status?: number }).status;
+      if (code === 10026 || status === 404) return null;
+      throw err;
+    }
+  }
+
+  /**
+   * Bulk-ban up to 200 members in one call. Added 2024-Q3.
+   * Returns the snowflakes that were actually banned and those that failed.
+   * Requires both `BAN_MEMBERS` and `MANAGE_GUILD`.
+   * Source: https://docs.discord.com/developers/resources/guild#bulk-guild-ban
+   */
+  async bulkBan(opts: {
+    userIds: string[];
+    /** Delete each banned user's messages from the last `n` seconds (max 604800). */
+    deleteMessageSeconds?: number;
+    reason?: string;
+  }): Promise<{ bannedUsers: string[]; failedUsers: string[] }> {
+    const r = await this.rest.post<{ banned_users: string[]; failed_users: string[] }>(
+      `/guilds/${this.id}/bulk-ban`,
+      { user_ids: opts.userIds, delete_message_seconds: opts.deleteMessageSeconds },
+      opts.reason ? { "X-Audit-Log-Reason": opts.reason } : undefined,
+    );
+    return { bannedUsers: r.banned_users, failedUsers: r.failed_users };
+  }
+
+  // ── Prune (inactive-member cleanup) ─────────────────────────────────────
+
+  /**
+   * Compute how many members would be pruned (NO destructive action).
+   * `days` = inactivity threshold (1..30, default 7).
+   * Source: https://docs.discord.com/developers/resources/guild#get-guild-prune-count
+   */
+  async getPruneCount(opts: { days?: number; includeRoleIds?: string[] } = {}): Promise<{ pruned: number }> {
+    const params = new URLSearchParams();
+    if (opts.days !== undefined) params.set("days", String(opts.days));
+    if (opts.includeRoleIds?.length) params.set("include_roles", opts.includeRoleIds.join(","));
+    const q = params.toString();
+    return this.rest.get<{ pruned: number }>(`/guilds/${this.id}/prune${q ? `?${q}` : ""}`);
+  }
+
+  /**
+   * Actually prune inactive members. Returns `{ pruned }` (count) when
+   * `computePruneCount` is true (default), or `{ pruned: null }` for fire-and-
+   * forget (recommended for large guilds).
+   * Source: https://docs.discord.com/developers/resources/guild#begin-guild-prune
+   */
+  async beginPrune(opts: {
+    days?: number;
+    /** When true (default), Discord computes the count and returns it. Set false on large guilds. */
+    computePruneCount?: boolean;
+    includeRoleIds?: string[];
+    reason?: string;
+  } = {}): Promise<{ pruned: number | null }> {
+    return this.rest.post<{ pruned: number | null }>(
+      `/guilds/${this.id}/prune`,
+      {
+        days: opts.days,
+        compute_prune_count: opts.computePruneCount,
+        include_roles: opts.includeRoleIds,
+      },
+      opts.reason ? { "X-Audit-Log-Reason": opts.reason } : undefined,
+    );
+  }
+
+  // ── Guild incidents / safety alerts (2024-Q2) ───────────────────────────
+
+  /**
+   * Toggle incident-mode safety actions: pause invites and/or DMs to/from
+   * the guild for up to 24h.
+   *
+   * Pass `null` for either field to clear that action.
+   * Source: https://docs.discord.com/developers/resources/guild#modify-guild-incident-actions
+   */
+  async setIncidentActions(opts: {
+    invitesDisabledUntil?: string | Date | null;
+    dmsDisabledUntil?: string | Date | null;
+    reason?: string;
+  }): Promise<{
+    invitesDisabledUntil: string | null;
+    dmsDisabledUntil: string | null;
+    dmSpamDetectedAt: string | null;
+    raidDetectedAt: string | null;
+  }> {
+    const toIso = (v: string | Date | null | undefined): string | null | undefined => {
+      if (v === undefined) return undefined;
+      if (v === null) return null;
+      return v instanceof Date ? v.toISOString() : v;
+    };
+    const r = await this.rest.put<{
+      invites_disabled_until: string | null;
+      dms_disabled_until: string | null;
+      dm_spam_detected_at: string | null;
+      raid_detected_at: string | null;
+    }>(
+      `/guilds/${this.id}/incident-actions`,
+      {
+        invites_disabled_until: toIso(opts.invitesDisabledUntil),
+        dms_disabled_until: toIso(opts.dmsDisabledUntil),
+      },
+      opts.reason ? { "X-Audit-Log-Reason": opts.reason } : undefined,
+    );
+    return {
+      invitesDisabledUntil: r.invites_disabled_until,
+      dmsDisabledUntil: r.dms_disabled_until,
+      dmSpamDetectedAt: r.dm_spam_detected_at,
+      raidDetectedAt: r.raid_detected_at,
+    };
+  }
+
+  // ── Integrations ────────────────────────────────────────────────────────
+
+  /**
+   * List third-party integrations connected to this guild (Twitch / YouTube /
+   * Discord apps). Capped at 50.
+   * Source: https://docs.discord.com/developers/resources/guild#get-guild-integrations
+   */
+  async fetchIntegrations(): Promise<RawIntegration[]> {
+    return this.rest.get<RawIntegration[]>(`/guilds/${this.id}/integrations`);
+  }
+
+  /**
+   * Delete a guild integration. Removes any associated webhooks and kicks any
+   * bot installed via that integration.
+   * Source: https://docs.discord.com/developers/resources/guild#delete-guild-integration
+   */
+  async deleteIntegration(integrationId: string, reason?: string): Promise<void> {
+    await this.rest.delete(
+      `/guilds/${this.id}/integrations/${integrationId}`,
+      reason ? { "X-Audit-Log-Reason": reason } : undefined,
+    );
+  }
+
+  // ── Templates ───────────────────────────────────────────────────────────
+
+  /** Guild Templates CRUD (snapshot a guild's structure as a reusable template). */
+  get templates(): GuildTemplates {
+    return new GuildTemplates(this.id, this.rest);
   }
 
   // ── Roles ───────────────────────────────────────────────────────────
