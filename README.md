@@ -1,29 +1,133 @@
-# Supa.js
+<p align="center">
+  <img src="./assets/banner.png" alt="Supa.js — the easiest way to build Discord bots, supercharged for AI development" />
+</p>
 
-Tiny, **LLM-friendly** Discord bot library. Ringkas, sat-set, no fluff.
+<h1 align="center">Supa.js</h1>
 
-Built from scratch on top of Discord's Gateway + REST API. **Zero runtime
-dependencies** (uses Node 22's built-in `WebSocket` and `fetch`).
+<p align="center">
+  <b>Tiny, LLM-friendly Discord bot library.</b><br/>
+  Ringkas, sat-set, no fluff.
+</p>
 
-> Functional parity with discord.js for nearly every common bot task — but
-> with a flat, predictable, object-literal-everywhere API that an LLM can
-> generate first try.
+<p align="center">
+  <a href="#install"><img alt="node" src="https://img.shields.io/badge/node-%E2%89%A522-339933?logo=node.js&logoColor=white" /></a>
+  <img alt="typescript" src="https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white" />
+  <img alt="zero deps" src="https://img.shields.io/badge/runtime%20deps-0-success" />
+  <img alt="discord api" src="https://img.shields.io/badge/Discord%20API-v10-5865F2?logo=discord&logoColor=white" />
+  <img alt="api coverage" src="https://img.shields.io/badge/API%20coverage-2026--04-blueviolet" />
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-green" />
+</p>
+
+<p align="center">
+  Built from scratch on top of Discord's Gateway + REST. <b>Zero runtime
+  dependencies</b> — only Node 22's built-in <code>WebSocket</code> and
+  <code>fetch</code>.
+</p>
+
+<p align="center">
+  Functional parity with <code>discord.js</code> for nearly every common bot
+  task — but with a flat, predictable, object-literal-everywhere API that an
+  LLM can generate first try.
+</p>
 
 ---
 
-## Why?
+## Why Supa.js?
 
 `discord.js` is huge, ceremony-heavy, and forces you through builder classes
 and managers. Supa.js follows a few hard rules:
 
-1. **One class.** `Bot`. Everything hangs off it.
-2. **Methods on the thing.** `member.kick()`, `msg.reply()`, `ctx.update()` —
-   never `client.guilds.cache.get(id).members.fetch(...).kick()`.
-3. **Object literals, not builders.** Embeds are `{ title, description, ... }`.
-   Buttons are `button({ customId, label, style })`. No `.setX().setY()` chains.
-4. **Auto-deploy** registered commands on `start()`. No separate register script.
-5. **Silent mentions by default.** Replies don't ping unless you ask.
-6. **Zero deps.** Just Node 22+.
+| | Rule | What it looks like |
+|---|---|---|
+| 1 | **One class.** | `Bot`. Everything hangs off it. |
+| 2 | **Methods on the thing.** | `member.kick()`, `msg.reply()`, `ctx.update()` — never `client.guilds.cache.get(id).members.fetch(...).kick()`. |
+| 3 | **Object literals, not builders.** | Embeds are `{ title, description }`. Buttons are `button({ customId, label, style })`. No `.setX().setY()` chains. |
+| 4 | **Auto-deploy.** | Registered commands ship on `start()`. No separate register script. |
+| 5 | **Silent mentions by default.** | Replies don't ping unless you ask. |
+| 6 | **Zero deps.** | Just Node 22+. |
+
+> Compared with discord.js, that's roughly **60% fewer lines** for the same
+> behaviour, no register script, no enum imports, no type guards, and no
+> @everyone footgun.
+
+---
+
+## What's covered
+
+```mermaid
+flowchart LR
+  Bot["🤖 Bot"] --> Gateway["⚡ Gateway<br/>(WebSocket)"]
+  Bot --> Rest["🌐 REST<br/>(rate-limit buckets)"]
+  Gateway -- "events" --> Bot
+  Bot --> Guilds["🏛️ Guild / Member<br/>kick / ban / timeout / prune<br/>bulkBan / incidentActions"]
+  Bot --> Channels["💬 Channel / Thread<br/>send / threads / polls / forums"]
+  Bot --> Cmds["🪄 Slash + UI<br/>commands · buttons · modals<br/>autocomplete · components V2"]
+  Bot --> Mod["🛡️ AutoMod<br/>typed triggers + actions"]
+  Bot --> Tpl["📋 Templates<br/>guild snapshots"]
+  Bot --> App["🔑 Application<br/>info · OAuth2 @me · integrations"]
+  Bot --> Money["💎 Monetization<br/>SKUs · entitlements · premium"]
+  Bot --> Stage["🎤 Stage / Soundboard<br/>Onboarding · Stickers · Voice msgs"]
+```
+
+<div align="center">
+
+| 🪄 **Interactions** | 🛡️ **Moderation** | 🏛️ **Guild Admin** |
+|---|---|---|
+| Slash + sub/group | bulkBan / fetchBan / unban | Templates CRUD |
+| User & Message commands | timeout / kick | Integrations + events |
+| Buttons / selects / modals | prune (preview + execute) | Audit log |
+| Autocomplete | incident actions (lockdown) | Onboarding · Welcome screen |
+| Components V2 | AutoMod (typed helpers) | Widget · Scheduled events |
+| Localizations (33 locales) | Per-route rate-limits | Search guild messages |
+
+| 💬 **Channels** | 💎 **Monetization** | 🎤 **Voice / Misc** |
+|---|---|---|
+| Text · voice · forum · media | SKUs / entitlements | Stage instances |
+| Threads · polls | Premium-style buttons | Soundboard |
+| Webhooks · invites | Role-connection metadata | Voice messages |
+| Crosspost · forward · follow | App emojis | Stickers + packs |
+
+</div>
+
+---
+
+## ✨ What's new in `0.2` (2026-04)
+
+This release closes the remaining gaps from `TODO.md`:
+
+- 🛡️ **Bulk ban** — `guild.bulkBan({ userIds, deleteMessageSeconds?, reason? })` (up to 200 users / call)
+- 🛡️ **Single-ban lookup** — `guild.fetchBan(userId)` returns `null` if not banned (no `10026` throw)
+- 🧹 **Prune** — `guild.getPruneCount({...})` (dry-run) and `guild.beginPrune({...})`
+- 🚨 **Incident actions** — `guild.setIncidentActions({ invitesDisabledUntil, dmsDisabledUntil })` for raid lockdown
+- 📋 **Guild Templates** — full CRUD: `bot.templates.fetch / createGuild`, `guild.templates.list / create / sync / edit / delete`
+- 🔌 **Integrations** — `guild.fetchIntegrations()`, `guild.deleteIntegration(id)`, gateway events `integrationCreate` / `Update` / `Delete`
+- 🔑 **App / OAuth** — `bot.fetchApplication()`, `bot.editApplication({...})`, `bot.fetchOwnAuthorization(bearerToken)`
+- 🌐 **Localizations** — typed `localize: { name, description }` on every `CommandDef` / option / choice. 33 locales, runtime validation, autoconverts to Discord's `*_localizations`
+- 🤖 **AutoMod helpers** — object-literal `AutoModTrigger.{keyword,spam,keywordPreset,mentionSpam,memberProfile}` and `AutoModAction.{block,alert,timeout}` so you can spread them into `guild.automod.create(...)`
+- 🩺 **DiscordErrorCodes** expanded **30 → 110+** curated entries with `kind / name / meaning / fix`. New `discordErrorCodesToJSON()` for AI tooling.
+- 📚 New end-to-end demo: [`examples/admin-2026.ts`](./examples/admin-2026.ts) (`npm run example:admin`)
+
+> Full changelog & implementation status: [`PROGRESS.md`](./PROGRESS.md) · [`TODO.md`](./TODO.md)
+
+---
+
+## 🚧 In progress / roadmap
+
+What's **next** vs. what's **explicitly out of scope**:
+
+| Status | Item | Notes |
+|---|---|---|
+| 🔭 watch | Discord changelog (monthly) | tracked against [docs.discord.com/developers/docs/changelog](https://docs.discord.com/developers/docs/changelog), [llms.txt](https://docs.discord.com/llms.txt), [api-docs commits](https://github.com/discord/discord-api-docs/commits/main) |
+| 🔍 verify | Attachment `title` / `description` post-upload edits | mentioned in api-docs PR #7353 — needs spec confirmation if `PATCH` exposed for bots |
+| 🔍 verify | Forwarded message `editedTimestamp` nullable semantics | currently raw pass-through |
+| 🔍 verify | New Components V2 layouts after 2026-04 | re-check on next changelog review |
+| 🤝 wishlist | Test runner / unit tests | currently relies on TS strict + smoke examples |
+| 🤝 wishlist | CI workflow | repo has none yet — minimal would be `node 22 → typecheck → build` |
+| ⛔ out of scope | **Voice send/receive** (UDP + Opus + libsodium) | ~2k LOC + native deps. Use a separate library; Supa.js exposes `voiceStateUpdate` / `voiceServerUpdate` so a voice lib can attach |
+| ⛔ out of scope | **Discord Social SDK / RPC-over-IPC** | not a bot concern |
+| ⛔ out of scope | `GET /users/@me/channels` | user-token only |
+| ⛔ out of scope | `GET /channels/{id}/followers` | Discord doesn't expose for bots; only `POST .../followers` exists (already implemented as `channel.follow()`) |
+| ⛔ out of scope | Activity Instance handshake | Activities SDK, not a bot endpoint |
 
 ---
 
@@ -37,7 +141,7 @@ Requires **Node.js >= 22**.
 
 ---
 
-## 30-second example
+## ⚡ 30-second example
 
 ```ts
 import { Bot } from "supa.js";
@@ -60,19 +164,27 @@ behaviour, no register script, no enum imports, no type guards, and no
 
 ---
 
-## Cheatsheet
+## 📒 Cheatsheet
 
-> Skip to a section: [Bot](#bot) · [Events](#events) · [Slash commands](#slash-commands) ·
-> [Subcommands](#subcommands--groups) · [User/Message commands](#context-menu-commands) ·
-> [Buttons & selects](#buttons--selects) · [Modals](#modals) ·
-> [Autocomplete](#autocomplete) · [Embeds](#embeds) · [Files](#file-attachments) ·
-> [Messages](#message-actions) · [Channels](#channels--threads) ·
-> [Members & guilds](#members--guilds) · [Roles](#roles) ·
-> [Webhooks](#webhooks) · [Invites](#invites) · [Permissions](#permissions) ·
-> [Collectors](#collectors) · [Cache](#cache) · [Sharding](#sharding) ·
-> [REST escape hatch](#escape-hatch--raw-rest)
+> 📚 Quick links: [What's new (0.2)](#-whats-new-in-02-2026-04) ·
+> [Roadmap](#-in-progress--roadmap) ·
+> [PROGRESS.md](./PROGRESS.md) · [TODO.md](./TODO.md) ·
+> [Examples](./examples/)
 
-### Bot
+> Skip to a section: [Bot](#-bot) · [Events](#-events) · [Slash commands](#-slash-commands) ·
+> [Subcommands](#-subcommands--groups) · [User/Message commands](#%EF%B8%8F-context-menu-commands) ·
+> [Buttons & selects](#-buttons--selects) · [Modals](#-modals) ·
+> [Autocomplete](#-autocomplete) · [Embeds](#%EF%B8%8F-embeds) · [Files](#-file-attachments) ·
+> [Messages](#-message-actions) · [Channels](#-channels--threads) ·
+> [Members & guilds](#%EF%B8%8F-members--guilds) · [Roles](#-roles) ·
+> [Webhooks](#-webhooks) · [Invites](#-invites) · [Permissions](#-permissions) ·
+> [Collectors](#-collectors) · [Cache](#-cache) · [Sharding](#%EF%B8%8F-sharding) ·
+> [Auto-mod](#%EF%B8%8F-auto-mod) · [Components V2](#-components-v2-2025--rich-layouts-without-embeds) ·
+> [Monetization](#-monetization--skus-entitlements-premium-buttons) ·
+> [Errors (AI-friendly)](#-structured-error-messages-ai-friendly) ·
+> [REST escape hatch](#-escape-hatch--raw-rest)
+
+### 🤖 Bot
 
 ```ts
 new Bot(token, opts?)            // opts: intents, apiUrl, gatewayUrl, shard, cache, presence
@@ -92,7 +204,7 @@ bot.me                           // User after `ready`
 bot.applicationId                // string after `ready`
 ```
 
-### Events
+### 📡 Events
 
 | event                       | payload                                                            |
 | --------------------------- | ------------------------------------------------------------------ |
@@ -123,7 +235,7 @@ bot.applicationId                // string after `ready`
 | `close`                     | `{ code, reason }`                                                 |
 | `raw`                       | `(eventName, data)` — any unwrapped event                          |
 
-### Slash commands
+### 🪄 Slash commands
 
 ```ts
 bot.command(
@@ -205,7 +317,7 @@ Locale codes are validated at compile time against Discord's supported
 `tr`, `cs`, `el`, `bg`, `ru`, `uk`, `hi`, `th`, `zh-CN`, `ja`, `zh-TW`, `ko`).
 Use `validateLocaleTable(table, "name")` for runtime validation.
 
-### Subcommands & groups
+### 🌳 Subcommands & groups
 
 Use **dotted names**:
 
@@ -217,7 +329,7 @@ bot.command("admin.user.ban", { description: "Ban", options: [...] }, ...)  // g
 
 Supa.js builds the option tree under the parent automatically.
 
-### Context-menu commands
+### 🖱️ Context-menu commands
 
 ```ts
 bot.userCommand("Get Avatar", { guildId }, (ctx) =>
@@ -229,7 +341,7 @@ bot.messageCommand("Save", { guildId }, (ctx) =>
 );
 ```
 
-### Buttons & selects
+### 🔘 Buttons & selects
 
 ```ts
 import { row, button, linkButton, stringSelect } from "supa.js";
@@ -266,7 +378,7 @@ await ctx.reply(opts) | ctx.followup(opts)  // send a separate response
 Other selects: `userSelect`, `roleSelect`, `mentionableSelect`,
 `channelSelect({ channelTypes: [...] })`.
 
-### Modals
+### 🧾 Modals
 
 ```ts
 import { textInput } from "supa.js";
@@ -287,7 +399,7 @@ bot.modal("feedback:form", (ctx) =>
 );
 ```
 
-### Autocomplete
+### 🔮 Autocomplete
 
 ```ts
 bot.command("fruit.pick", { description: "Pick a fruit",
@@ -300,7 +412,7 @@ bot.autocomplete("fruit.pick:name", (ctx) => {
 });
 ```
 
-### Embeds
+### 🖼️ Embeds
 
 Just an object:
 
@@ -317,7 +429,7 @@ await ctx.reply({
 });
 ```
 
-### File attachments
+### 📎 File attachments
 
 ```ts
 await ctx.reply({
@@ -329,7 +441,7 @@ await ctx.reply({
 `data` accepts `Uint8Array | Buffer | string`. Multipart upload is handled
 automatically.
 
-### Message actions
+### 💬 Message actions
 
 ```ts
 m.id; m.channelId; m.guildId; m.content; m.author  // User
@@ -350,7 +462,7 @@ await m.crosspost()
 m.raw                              // escape hatch
 ```
 
-### Channels & threads
+### 🧵 Channels & threads
 
 ```ts
 const ch = await bot.fetchChannel(id)
@@ -375,7 +487,7 @@ await ch.setPermission(targetId, { allow?, deny?, type: "role"|"member" })
 await ch.fetchPinned()
 ```
 
-### Members & guilds
+### 🏛️ Members & guilds
 
 ```ts
 const g = await bot.fetchGuild(id)
@@ -417,7 +529,7 @@ await member.addRole(roleId, reason?) | member.removeRole(roleId)
 await member.send(text | opts)                      // DM
 ```
 
-### Roles
+### 🎭 Roles
 
 ```ts
 role.id; role.name; role.color; role.position; role.permissions; role.mention
@@ -425,7 +537,7 @@ await role.edit({ name?, color?, permissions?, mentionable? })
 await role.delete(reason?)
 ```
 
-### Webhooks
+### 🪝 Webhooks
 
 ```ts
 const wh = await ch.createWebhook({ name: "Logs" })
@@ -434,7 +546,7 @@ await wh.edit({ name, avatar })
 await wh.delete()
 ```
 
-### Invites
+### 🔗 Invites
 
 ```ts
 const inv = await ch.createInvite({ maxAge: 0, maxUses: 0, unique: true })
@@ -442,7 +554,7 @@ inv.code; inv.url; inv.uses; inv.maxUses; inv.expiresAt
 await inv.delete()
 ```
 
-### Permissions
+### 🔐 Permissions
 
 ```ts
 import { Permissions } from "supa.js";
@@ -453,7 +565,7 @@ Permissions.has(member.raw.permissions, "Administrator")
 Permissions.list(bits)  // ["BanMembers","ManageMessages"]
 ```
 
-### Collectors
+### 🪤 Collectors
 
 ```ts
 import { collect, await_ } from "supa.js";
@@ -472,7 +584,7 @@ const clicks = await collect.component(bot, {
 });
 ```
 
-### Cache
+### 💾 Cache
 
 Off by default. Enable for a low-effort in-memory cache:
 
@@ -487,7 +599,7 @@ bot.cache.guilds.get(id)
 bot.cache.channels.get(id)
 ```
 
-### Sharding
+### ✂️ Sharding
 
 ```ts
 import { Bot, ShardManager } from "supa.js";
@@ -500,7 +612,7 @@ const sm = new ShardManager({
 await sm.spawn();
 ```
 
-### Components V2 (2025) — rich layouts without embeds
+### 🧱 Components V2 (2025) — rich layouts without embeds
 
 Components V2 lets you compose messages from layout primitives. Pass
 `componentsV2: true` and Supa.js will set the right flag for you (V2 messages
@@ -533,7 +645,7 @@ await ch.send({
 Components: `textDisplay`, `separator`, `section`, `thumbnail`, `mediaGallery`,
 `fileComponent`, `container`, plus the existing `row`/`button`/select helpers.
 
-### Polls
+### 📊 Polls
 
 ```ts
 await ch.send({
@@ -552,7 +664,7 @@ await ch.expirePoll(messageId);
 const voters = await ch.fetchPollVoters(messageId, /*answerId*/ 1);
 ```
 
-### Auto-mod
+### 🛡️ Auto-mod
 
 ```ts
 import { AutoModTrigger, AutoModAction } from "supa.js";
@@ -586,7 +698,7 @@ Typed helpers:
 
 The raw `triggerType` + `triggerMetadata` shape still works if you prefer it.
 
-### Application emojis (no guild needed)
+### 😊 Application emojis (no guild needed)
 
 ```ts
 const created = await bot.emojis.create({
@@ -598,7 +710,7 @@ await bot.emojis.list();
 await bot.emojis.delete(created.id);
 ```
 
-### Voice messages
+### 🎙️ Voice messages
 
 ```ts
 import { voiceMessage } from "supa.js";
@@ -618,7 +730,7 @@ await ch.send({
 });
 ```
 
-### Soundboard
+### 🔊 Soundboard
 
 ```ts
 const defaults = await bot.soundboard.defaults();
@@ -626,7 +738,7 @@ const guildSounds = await bot.soundboard.listGuild(guildId);
 await bot.soundboard.send(voiceChannelId, defaults[0].id);  // bot must be in VC
 ```
 
-### Forum / media posts
+### 📰 Forum / media posts
 
 ```ts
 const post = await forum.createForumPost({
@@ -637,7 +749,7 @@ const post = await forum.createForumPost({
 await post.send("first reply");
 ```
 
-### Streaming any async iterable into a reply
+### 🌊 Streaming any async iterable into a reply
 
 `ctx.streamReply()` is provider-agnostic — it batches edits to avoid Discord
 rate-limits. Works with any `AsyncIterable<string>`:
@@ -656,7 +768,7 @@ bot.command("demo", { description: "demo stream" }, async ctx => {
 
 (Bring your own AI SDK — Supa.js stays Discord-only.)
 
-### Onboarding (new-member flow)
+### 👋 Onboarding (new-member flow)
 
 ```ts
 const onb = await guild.onboarding.fetch();
@@ -675,7 +787,7 @@ await guild.onboarding.edit({
 });
 ```
 
-### Welcome Screen / Widget
+### 🎉 Welcome Screen / Widget
 
 ```ts
 const ws = await guild.fetchWelcomeScreen();
@@ -689,7 +801,7 @@ await guild.editWidget({ enabled: true, channelId });
 const widget = await guild.fetchWidget();    // public widget JSON
 ```
 
-### Stage Instances
+### 🎤 Stage Instances
 
 ```ts
 const stage = await bot.stages.start({
@@ -701,7 +813,7 @@ await bot.stages.edit(stage.channelId, { topic: "Weekly AMA" });
 await bot.stages.end(stage.channelId);
 ```
 
-### Voice State (move / mute / deafen)
+### 🎧 Voice State (move / mute / deafen)
 
 ```ts
 const member = await guild.fetchMember(userId);
@@ -714,14 +826,14 @@ await member.disconnectVoice();
 await guild.setOwnVoiceState({ channelId: stageVoiceId, requestToSpeakAt: new Date().toISOString() });
 ```
 
-### Voice channel status & effects
+### 📢 Voice channel status & effects
 
 ```ts
 await voiceChannel.setVoiceStatus("🎮 Playing Valorant");
 await voiceChannel.sendVoiceEffect({ emojiName: "👋" });
 ```
 
-### Stickers
+### 🩷 Stickers
 
 ```ts
 const stickers = await guild.stickers.list();
@@ -738,7 +850,7 @@ await guild.stickers.delete(sticker.id);
 const packs = await bot.fetchStickerPacks();
 ```
 
-### Forum tags + applied tags
+### 🏷️ Forum tags + applied tags
 
 ```ts
 await forumChannel.setForumTags([
@@ -752,14 +864,14 @@ await forumChannel.createForumPost({
 });
 ```
 
-### Announcement channel follow + crosspost
+### 📣 Announcement channel follow + crosspost
 
 ```ts
 await announcementCh.follow(targetChannelId);   // in another guild
 await announcementCh.crosspost(messageId);      // publish to followers
 ```
 
-### Forwarded messages
+### ↪️ Forwarded messages
 
 ```ts
 // via Channel.send():
@@ -771,14 +883,14 @@ await ch.send({
 await msg.forward(targetChannelId);
 ```
 
-### Active threads in a guild
+### 🧶 Active threads in a guild
 
 ```ts
 const { threads } = await guild.fetchActiveThreads();
 for (const t of threads) console.log(t.name, t.id);
 ```
 
-### Application Command Permissions (per-guild)
+### 🚸 Application Command Permissions (per-guild)
 
 ```ts
 await bot.fetchCommandPermissions(guildId);             // all commands
@@ -789,7 +901,7 @@ await bot.setCommandPermissions(guildId, cmd.id,
   bearerToken);
 ```
 
-### Monetization — SKUs, Entitlements, Premium Buttons
+### 💰 Monetization — SKUs, Entitlements, Premium Buttons
 
 ```ts
 import { premiumButton, row } from "supa.js";
@@ -817,7 +929,7 @@ await ch.send({
 bot.on("entitlementCreate", e => console.log("new entitlement:", e));
 ```
 
-### Application Role Connection Metadata (linked roles)
+### 🔗 Application Role Connection Metadata (linked roles)
 
 ```ts
 await bot.roleConnections.set([
@@ -827,7 +939,7 @@ await bot.roleConnections.set([
 const fields = await bot.roleConnections.list();
 ```
 
-### Premium / Stage / Audit Log Entry events
+### 🌟 Premium / Stage / Audit Log Entry events
 
 ```ts
 bot.on("entitlementCreate", e => { /* ... */ });
@@ -835,7 +947,7 @@ bot.on("stageInstanceCreate", s => { /* ... */ });
 bot.on("guildAuditLogEntryCreate", entry => { /* fine-grained mod logs */ });
 ```
 
-### Debugger
+### 🐛 Debugger
 
 ```ts
 const bot = new Bot(token, { debug: true });   // instant: logs events + REST timing
@@ -853,7 +965,7 @@ Output (color-coded, one per line):
 [supa:rest]  POST /channels/.../polls/.../expire 200 175ms rl:999/0.0s
 ```
 
-### Escape hatch — raw REST
+### 🚪 Escape hatch — raw REST
 
 Anything Supa.js doesn't wrap, you can still do directly:
 
@@ -868,7 +980,7 @@ await bot.rest.upload("POST", "/channels/x/messages", { content: "doc" }, [
 `bot.rest` exposes `.get .post .put .patch .delete .upload`. Throws `RestError`
 with `.status .code .body .meta .method .path` on non-2xx.
 
-### Structured error messages (AI-friendly)
+### 🩺 Structured error messages (AI-friendly)
 
 `RestError` carries a `.meta` object with `kind`, `name`, `meaning`, and `fix`
 populated from a curated map of Discord JSON error codes. The thrown error
@@ -905,7 +1017,7 @@ Codes mapped include `2026-Q1` additions:
 - **`110000`** `SearchIndexNotReady` — guild's message search index still building, retry with backoff
 - **`160014`** `ForwardRequiresContentAccess` — bot must be able to read source message to forward it (MESSAGE_CONTENT intent + VIEW_CHANNEL)
 
-### Search Guild Messages (added 2026-Q1)
+### 🔎 Search Guild Messages (added 2026-Q1)
 
 ```ts
 const r = await guild.searchMessages({
@@ -926,7 +1038,7 @@ Requires `READ_MESSAGE_HISTORY` + `MESSAGE_CONTENT` privileged intent. Throws
 
 ---
 
-## Discord changelog tracked
+## 📅 Discord changelog tracked
 
 Supa.js follows the **official** sources:
 - https://docs.discord.com/developers/docs/changelog
@@ -939,7 +1051,7 @@ structured `RestError` with codes `110000` / `160014`.
 
 ---
 
-## What's intentionally NOT included
+## 🚫 What's intentionally NOT included
 
 - **Voice send/receive.** Requires Opus + libsodium + UDP voice protocol. That
   belongs in a separate library. Use the gateway `voiceStateUpdate` event +
@@ -951,7 +1063,7 @@ structured `RestError` with codes `110000` / `160014`.
 
 ---
 
-## Local development
+## 🛠️ Local development
 
 ```bash
 npm install
@@ -976,7 +1088,17 @@ Token: https://discord.com/developers/applications → New Application → Bot
 
 ---
 
-## Status
+## 🎯 Status
+
+`v0.2` (2026-04) — closes the remaining `TODO.md` gaps and adds:
+
+- 🛡️ **Bulk ban / single fetch / prune / incident actions** — full guild-moderation surface
+- 📋 **Guild templates** — full CRUD (`bot.templates.*` + `guild.templates.*`)
+- 🔌 **Integrations** — list / delete + `INTEGRATION_*` gateway events
+- 🔑 **Application info / OAuth2 @me** — `bot.fetchApplication`, `bot.editApplication`, `bot.fetchOwnAuthorization`
+- 🌐 **Slash localizations** — typed `Locale` (33 locales), `localize: { name, description }`, per-choice `nameLocalizations`
+- 🤖 **AutoMod typed helpers** — spread-style `AutoModTrigger.*` + `AutoModAction.*`
+- 🩺 **DiscordErrorCodes** 30 → **110+** entries with curated `kind/name/meaning/fix` + `discordErrorCodesToJSON()`
 
 `v0.3` — everything in v0.2 **plus**:
 
